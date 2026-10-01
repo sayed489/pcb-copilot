@@ -14,7 +14,6 @@ export const runtime = 'nodejs'
 export const maxDuration = 120
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-export const preferredRegion = ['sfo1', 'iad1']
 
 const exportRateLimit = createRateLimitStore({ max: 10, windowMs: 5 * 60_000, maxKeys: 2000 })
 

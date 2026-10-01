@@ -1,232 +1,224 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
-import { CircuitBoardIcon, ZapIcon, SendIcon } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { CornerDownLeftIcon, SendIcon, Trash2Icon } from 'lucide-react'
 
-import { Bubble, BubbleContent } from '@/components/ui/bubble'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from '@/components/ui/empty'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { BrutalCard } from '@/components/ui/brutal-card'
 import { Kbd } from '@/components/ui/kbd'
-import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
-import { Message, MessageContent } from '@/components/ui/message'
-import {
-  MessageScroller,
-  MessageScrollerButton,
-  MessageScrollerContent,
-  MessageScrollerItem,
-  MessageScrollerProvider,
-  MessageScrollerViewport,
-} from '@/components/ui/message-scroller'
 import { Spinner } from '@/components/ui/spinner'
+import { cn } from '@/lib/utils'
 import type { ChatMessage } from '@/lib/chat'
-import { LiveGenerationStatus } from '@/components/LiveGenerationStatus'
 import type { DesignDiagnostic } from '@/lib/design'
+import { LiveGenerationStatus } from '@/components/LiveGenerationStatus'
 
 type PromptChatProps = {
   messages: ChatMessage[]
   isGenerating: boolean
   onSubmit: (prompt: string) => void
+  onClear?: () => void
   stages?: string[]
   liveCode?: string
   liveDiagnostics?: DesignDiagnostic[]
 }
 
+const EXAMPLES = [
+  '5V USB-C sensor board, 40×25mm, Qwiic connector',
+  'ESP32 dev board with LiPo charger + status LEDs',
+  'Motor driver 12V 5A with current sense',
+  'LED matrix 8×8 with shift registers',
+]
+
 export function PromptChat({
   messages,
   isGenerating,
   onSubmit,
+  onClear,
   stages = [],
   liveCode,
   liveDiagnostics,
 }: PromptChatProps) {
   const [value, setValue] = useState('')
-  const formRef = useRef<HTMLFormElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
-  function submitPrompt() {
-    const prompt = value.trim()
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const pendingQuestions = lastAssistant?.questions ?? []
+
+  function submitPrompt(text?: string) {
+    const prompt = (text ?? value).trim()
     if (!prompt || isGenerating) return
     onSubmit(prompt)
     setValue('')
   }
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`
   }, [value])
 
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+  }, [messages.length, isGenerating])
+
+  const userCount = messages.filter((m) => m.role === 'user').length
+
   return (
-    <section className="flex h-full min-h-0 flex-col bg-white">
-      <header className="flex h-[52px] shrink-0 items-center justify-between border-b-[4px] border-black bg-black px-4">
-        <div className="flex items-center gap-3">
-          <div className="border-2 border-[#00E5FF] bg-[#00E5FF] p-1.5">
-            <CircuitBoardIcon className="size-4 text-black" />
-          </div>
-          <p className="font-black text-xs uppercase tracking-[0.2em] text-[#00E5FF]">
-            Engineering brief
-          </p>
+    <section className="flex min-h-0 flex-1 flex-col bg-white">
+      {/* Header */}
+      <header className="flex h-8 shrink-0 items-center justify-between border-b-2 border-black bg-white px-2.5">
+        <div className="flex items-center gap-2">
+          <span className="studio-panel-title">Brief</span>
+          <Badge variant="outline" className="h-4 px-1.5 text-[9px]">
+            {userCount} input{userCount === 1 ? '' : 's'}
+          </Badge>
           {isGenerating && (
-            <Badge variant="live" className="border-[#00E5FF] bg-black text-[#00E5FF]">
-              <span className="size-2 bg-[#00E5FF] brutal-live-dot" />
+            <Badge variant="live" className="h-4 px-1.5 text-[9px]">
+              <span className="size-1.5 bg-[#00E5FF] brutal-live-dot" />
               LIVE
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <p className="font-mono text-[11px] font-bold uppercase tracking-wider text-white/70">
-            {messages.filter((m) => m.role === 'user').length} INPUTS
-          </p>
-          <div className="size-2 bg-[#00E5FF] brutal-live-dot" />
+        <div className="flex items-center gap-1">
+          {messages.length > 0 && (
+            <button
+              className="flex size-5 items-center justify-center border border-black/20 hover:bg-zinc-100"
+              onClick={onClear}
+              title="Clear conversation"
+            >
+              <Trash2Icon className="size-3" />
+            </button>
+          )}
         </div>
       </header>
 
-      <MessageScrollerProvider autoScroll>
-        <MessageScroller className="min-h-0 flex-1 bg-zinc-50">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="justify-end gap-4 p-4">
-              {messages.length === 0 ? (
-                <MessageScrollerItem messageId="empty">
-                  <BrutalCard variant="white" shadow="lg" className="min-h-64 border-dashed">
-                    <Empty className="min-h-48 border-0 bg-transparent">
-                      <EmptyHeader>
-                        <EmptyMedia
-                          variant="icon"
-                          className="border-[3px] border-black bg-[#00E5FF] shadow-[4px_4px_0px_0px_black]"
-                        >
-                          <CircuitBoardIcon className="text-black" />
-                        </EmptyMedia>
-                        <EmptyTitle className="font-black uppercase tracking-widest">
-                          Describe the board you need
-                        </EmptyTitle>
-                        <EmptyDescription className="font-mono text-xs leading-relaxed">
-                          Fireworks writes real tscircuit source, compiles it, runs connectivity and
-                          layout checks, repairs failures, and unlocks fabrication files only after
-                          verification.
-                        </EmptyDescription>
-                        <div className="mt-4 grid grid-cols-1 gap-2 text-left sm:grid-cols-2">
-                          {[
-                            '5V USB-C sensor board, 40×25mm',
-                            'ESP32 dev board with LiPo charger',
-                            'Motor driver 12V 5A with current sense',
-                            'LED matrix 8x8 with shift registers',
-                          ].map((example) => (
-                            <button
-                              key={example}
-                              onClick={() => setValue(example)}
-                              className="border-[2.5px] border-black bg-white p-2.5 text-left font-mono text-[11px] font-bold uppercase leading-tight shadow-[2px_2px_0px_0px_black] transition-all hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_0px_black] hover:bg-[#00E5FF]"
-                            >
-                              → {example}
-                            </button>
-                          ))}
-                        </div>
-                      </EmptyHeader>
-                    </Empty>
-                  </BrutalCard>
-                </MessageScrollerItem>
-              ) : (
-                <>
-                  {messages.map((message) => (
-                    <MessageScrollerItem
-                      key={message.id}
-                      messageId={message.id}
-                      scrollAnchor={message.role === 'user'}
-                    >
-                      {message.role === 'user' || message.role === 'assistant' ? (
-                        <Message align={message.role === 'user' ? 'end' : 'start'}>
-                          <MessageContent>
-                            <div
-                              className={`max-w-[85%] border-[3px] border-black p-3 shadow-[4px_4px_0px_0px_black] ${
-                                message.role === 'user'
-                                  ? 'bg-[#00E5FF] text-black'
-                                  : 'bg-white text-black'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 border-b-[2px] border-black/20 pb-1.5">
-                                <Badge
-                                  variant={message.role === 'user' ? 'secondary' : 'outline'}
-                                  className="h-5 text-[10px]"
-                                >
-                                  {message.role === 'user' ? 'YOU' : 'COPILOT'}
-                                </Badge>
-                                <span className="font-mono text-[10px] uppercase opacity-60">
-                                  {new Date().toLocaleTimeString()}
-                                </span>
-                              </div>
-                              <div className="mt-2 whitespace-pre-wrap font-mono text-[13px] font-medium leading-relaxed">
-                                {message.content}
-                              </div>
-                            </div>
-                          </MessageContent>
-                        </Message>
-                      ) : (
-                        <div
-                          className={`flex items-center gap-2 border-[2.5px] border-black px-3 py-2 font-mono text-[11px] font-black uppercase tracking-wider shadow-[2px_2px_0px_0px_black] ${
-                            message.tone === 'error'
-                              ? 'bg-red-500 text-white'
-                              : message.tone === 'success'
-                                ? 'bg-emerald-400 text-black'
-                                : 'bg-black text-[#00E5FF]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            {message.tone === 'info' && isGenerating ? <Spinner className="size-3" /> : null}
-                            {message.tone === 'error' ? <span>⚠</span> : null}
-                            {message.tone === 'success' ? <span>✓</span> : null}
-                            {message.tone === 'info' ? <ZapIcon className="size-3" /> : null}
-                          </div>
-                          <span>{message.content}</span>
-                        </div>
-                      )}
-                    </MessageScrollerItem>
-                  ))}
-
-                  {/* Live Generation Status */}
-                  {(isGenerating || stages.length > 0) && (
-                    <MessageScrollerItem messageId="live-status" scrollAnchor>
-                      <LiveGenerationStatus
-                        isGenerating={isGenerating}
-                        stages={stages}
-                        currentCode={liveCode}
-                        diagnosticsCount={liveDiagnostics?.length}
-                      />
-                    </MessageScrollerItem>
+      {/* Messages */}
+      <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto p-2.5">
+        {messages.length === 0 ? (
+          <div className="space-y-2.5">
+            <div className="border-2 border-black bg-[#00E5FF]/15 p-2.5 shadow-[3px_3px_0px_0px_black]">
+              <p className="font-mono text-[11px] font-bold leading-relaxed">
+                Describe the board you need. The agent writes real{' '}
+                <span className="bg-[#00E5FF] px-0.5">tscircuit TSX</span>, compiles it, runs
+                ERC/DRC, repairs failures — and only then unlocks fab files.
+              </p>
+            </div>
+            <p className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-zinc-400">
+              Try one of these →
+            </p>
+            <div className="space-y-1.5">
+              {EXAMPLES.map((example) => (
+                <button
+                  key={example}
+                  onClick={() => submitPrompt(example)}
+                  disabled={isGenerating}
+                  className="block w-full border-2 border-black bg-white px-2 py-1.5 text-left font-mono text-[10px] font-bold leading-tight shadow-[2px_2px_0px_0px_black] transition-all hover:-translate-x-px hover:-translate-y-px hover:bg-[#00E5FF] hover:shadow-[3px_3px_0px_0px_black] disabled:opacity-50"
+                >
+                  → {example}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((message) =>
+              message.role === 'user' || message.role === 'assistant' ? (
+                <div
+                  key={message.id}
+                  className={cn(
+                    'max-w-[92%] border-2 border-black p-2 shadow-[3px_3px_0px_0px_black]',
+                    message.role === 'user'
+                      ? 'ml-auto bg-[#00E5FF]'
+                      : 'mr-auto bg-white',
                   )}
-                </>
-              )}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton className="border-[3px] border-black bg-[#00E5FF] text-black shadow-[3px_3px_0px_0px_black] hover:bg-[#00D4FF]" />
-        </MessageScroller>
-      </MessageScrollerProvider>
+                >
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <span className="font-mono text-[9px] font-black uppercase tracking-[0.18em]">
+                      {message.role === 'user' ? 'You' : 'Copilot'}
+                    </span>
+                    {message.createdAt && (
+                      <span className="font-mono text-[9px] tabular-nums opacity-50">
+                        {new Date(message.createdAt).toLocaleTimeString('en-GB', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: false,
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  <p className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed">
+                    {message.content}
+                  </p>
+                </div>
+              ) : (
+                <div
+                  key={message.id}
+                  className={cn(
+                    'border-2 border-black px-2 py-1.5 font-mono text-[10px] font-black uppercase tracking-wider',
+                    message.tone === 'error'
+                      ? 'bg-red-500 text-white shadow-[2px_2px_0px_0px_black]'
+                      : message.tone === 'success'
+                        ? 'bg-emerald-400 text-black shadow-[2px_2px_0px_0px_black]'
+                        : 'bg-black text-[#00E5FF] shadow-[2px_2px_0px_0px_#00E5FF]',
+                  )}
+                >
+                  {message.content}
+                </div>
+              ),
+            )}
 
+            {(isGenerating || stages.length > 0) && (
+              <LiveGenerationStatus
+                isGenerating={isGenerating}
+                stages={stages}
+                currentCode={liveCode}
+                diagnosticsCount={liveDiagnostics?.length}
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Clarification quick-replies */}
+      {pendingQuestions.length > 0 && !isGenerating && (
+        <div className="shrink-0 border-t-2 border-black bg-[#00E5FF]/10 p-2">
+          <p className="mb-1.5 font-mono text-[9px] font-black uppercase tracking-[0.16em]">
+            Quick reply
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {pendingQuestions.map((question, i) => (
+              <button
+                key={i}
+                onClick={() => submitPrompt(question)}
+                disabled={isGenerating}
+                className="border-2 border-black bg-white px-2 py-1 text-left font-mono text-[10px] font-bold shadow-[2px_2px_0px_0px_black] transition-all hover:-translate-x-px hover:-translate-y-px hover:bg-[#00E5FF] disabled:opacity-50"
+              >
+                {i + 1}. {question.length > 60 ? `${question.slice(0, 60)}…` : question}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Composer */}
       <form
-        ref={formRef}
-        className="shrink-0 border-t-[4px] border-black bg-white p-3"
+        className="shrink-0 border-t-2 border-black bg-white p-2"
         onSubmit={(event) => {
           event.preventDefault()
           submitPrompt()
         }}
       >
-        <div className="border-[3px] border-black shadow-[4px_4px_0px_0px_black] focus-within:shadow-[6px_6px_0px_0px_black] focus-within:translate-x-[-1px] focus-within:translate-y-[-1px] transition-all">
+        <div className="border-2 border-black shadow-[3px_3px_0px_0px_black] focus-within:shadow-[4px_4px_0px_0px_#00E5FF]">
           <textarea
             ref={textareaRef}
-            rows={3}
+            rows={2}
             value={value}
             disabled={isGenerating}
-            placeholder="e.g. 5V USB-C sensor board, 40×25mm, Qwiic, 2x buttons…"
+            placeholder="e.g. 3.3V sensor board, 4 LEDs, Qwiic, 30×20mm…"
             aria-label="Circuit requirements"
-            className="min-h-20 w-full resize-none border-0 bg-white p-3 font-mono text-[13px] font-medium leading-relaxed outline-none placeholder:text-zinc-500 disabled:opacity-50"
+            className="min-h-14 w-full resize-none bg-white p-2 font-mono text-[11px] leading-relaxed outline-none placeholder:text-zinc-400 disabled:opacity-50"
             onChange={(event) => setValue(event.target.value)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' || event.shiftKey) return
@@ -235,38 +227,30 @@ export function PromptChat({
               submitPrompt()
             }}
           />
-          <div className="flex items-center justify-between border-t-[3px] border-black bg-zinc-50 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Kbd className="border-[2px] border-black bg-white px-1.5 py-0.5 font-mono text-[10px] font-black shadow-[1px_1px_0px_0px_black]">
-                ↵
+          <div className="flex items-center justify-between border-t-2 border-black bg-zinc-50 px-2 py-1">
+            <div className="flex items-center gap-1.5">
+              <Kbd className="border border-black bg-white px-1 text-[9px]">
+                <CornerDownLeftIcon className="size-2.5" />
               </Kbd>
-              <span className="hidden font-mono text-[11px] font-black uppercase tracking-wider sm:inline">
-                Run agent
+              <span className="hidden font-mono text-[9px] font-black uppercase tracking-wider text-zinc-500 sm:inline">
+                send · shift+enter = newline
               </span>
-              <span className="font-mono text-[10px] text-zinc-500 sm:hidden">RUN</span>
-              <Badge variant="outline" className="ml-2 hidden h-5 text-[10px] sm:inline-flex">
-                SHIFT+ENTER = NEW LINE
-              </Badge>
             </div>
             <Button
               type="submit"
               variant="cyan"
-              size="sm"
+              size="xs"
               disabled={isGenerating || value.trim().length === 0}
-              className="h-8 gap-1.5 text-[11px]"
+              className="h-6 text-[10px]"
             >
-              {isGenerating ? <Spinner data-icon="inline-start" className="size-3" /> : <SendIcon className="size-3" />}
-              {isGenerating ? 'WORKING' : 'GENERATE'}
+              {isGenerating ? (
+                <Spinner className="size-3" />
+              ) : (
+                <SendIcon className="size-3" />
+              )}
+              {isGenerating ? 'WORKING' : 'SEND'}
             </Button>
           </div>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-            {value.length}/4000 chars • Fluid Compute • Vercel
-          </span>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-500">
-            CYAN • BRUTAL • LIVE
-          </span>
         </div>
       </form>
     </section>

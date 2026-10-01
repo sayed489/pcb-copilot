@@ -296,3 +296,76 @@
   background: #00E5FF;
   border-color: white;
 }
+
+/* ── Studio (EDA editor) shell ─────────────────────────────────────── */
+@layer utilities {
+  .studio-panel-header {
+    @apply flex h-8 shrink-0 items-center justify-between border-b-2 border-black bg-zinc-100 px-2.5;
+  }
+  .studio-panel-title {
+    @apply font-mono text-[10px] font-black uppercase tracking-[0.18em] text-black/70;
+  }
+  .studio-dock {
+    @apply flex min-h-0 flex-col bg-white;
+  }
+  .studio-grid-bg {
+    background-color: #fafafa;
+    background-image:
+      linear-gradient(rgba(0, 229, 255, 0.14) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 229, 255, 0.14) 1px, transparent 1px),
+      linear-gradient(rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
+  }
+}
+
+/* Menu dropdowns */
+.studio-menu-item {
+  @apply flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-[11px] font-bold uppercase tracking-wider hover:bg-[#00E5FF] hover:text-black;
+}
+
+/* Console lines */
+.console-line {
+  @apply flex gap-2 px-2 py-0.5 font-mono text-[11px] leading-5;
+}
+
+/* Storyline speech bubble tail */
+.bubble-tail::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 14px;
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 8px solid black;
+}
+
+/* Fireworks overlay */
+@keyframes fw-fade-in { from { opacity: 0 } to { opacity: 1 } }
+.fw-overlay { animation: fw-fade-in 0.25s ease-out; }
+
+/* Mascot states */
+@keyframes mascot-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-6px) } }
+.mascot-float { animation: mascot-float 3s ease-in-out infinite; }
+
+/* Tool button */
+.tool-btn {
+  @apply flex h-7 items-center gap-1.5 border-2 border-black bg-white px-2 font-mono text-[10px] font-black uppercase tracking-wider shadow-[1.5px_1.5px_0px_0px_black] transition-all;
+}
+.tool-btn:hover { @apply -translate-x-px -translate-y-px shadow-[2.5px_2.5px_0px_0px_black]; }
+.tool-btn[data-active='true'] { @apply bg-[#00E5FF] -translate-x-px -translate-y-px shadow-[2.5px_2.5px_0px_0px_black]; }
+
+/* Doc tabs */
+.doc-tab {
+  @apply relative flex h-8 items-center gap-1.5 border-r-2 border-black bg-zinc-100 px-3 font-mono text-[11px] font-black uppercase tracking-wider text-black/60 transition-colors;
+}
+.doc-tab:hover { @apply bg-white text-black; }
+.doc-tab[data-active='true'] {
+  @apply bg-white text-black;
+}
+.doc-tab[data-active='true']::after {
+  content: '';
+  @apply absolute inset-x-0 top-0 h-[3px] bg-[#00E5FF];
+}

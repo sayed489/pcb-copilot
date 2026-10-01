@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useState, useEffect } from 'react'
+import { type ReactNode, useState, useEffect, useMemo } from 'react'
 import {
   CheckCircle2Icon,
   Code2Icon,
@@ -28,7 +28,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
 import type { DesignResult, DesignDiagnostic } from '@/lib/design'
 import { MANUFACTURING_BUNDLE_FILENAME } from '@/lib/exports'
 
@@ -38,7 +38,18 @@ type CircuitViewerProps = {
   liveCode?: string
   stages?: string[]
   diagnostics?: DesignDiagnostic[]
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+  gridOn?: boolean
 }
+
+const DOC_TABS = [
+  { id: 'schematic', label: 'Schematic', icon: EyeIcon },
+  { id: 'pcb', label: 'PCB', icon: LayersIcon },
+  { id: '3d', label: '3D', icon: BoxIcon },
+  { id: 'source', label: 'Source', icon: FileCodeIcon },
+  { id: 'review', label: 'Checks', icon: ClipboardCheckIcon },
+] as const
 
 export function CircuitViewer({
   design,
@@ -46,21 +57,28 @@ export function CircuitViewer({
   liveCode,
   stages = [],
   diagnostics,
+  activeTab: controlledTab,
+  onTabChange,
+  gridOn = true,
 }: CircuitViewerProps) {
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [isReviewing, setIsReviewing] = useState(false)
   const [reviewData, setReviewData] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState('schematic')
+  const [internalTab, setInternalTab] = useState('schematic')
 
-  const status = isGenerating ? 'generating' : design ? 'ready' : 'idle'
+  const activeTab = controlledTab ?? internalTab
+  const setActiveTab = (t: string) => {
+    if (controlledTab === undefined) setInternalTab(t)
+    onTabChange?.(t)
+  }
 
-  // Auto-switch to schematic when design arrives
+  // Auto-switch to PCB when the design lands (the "hero" view)
   useEffect(() => {
-    if (design && !isGenerating) {
-      setActiveTab('schematic')
+    if (design && !isGenerating && controlledTab === undefined) {
+      setInternalTab('pcb')
     }
-  }, [design, isGenerating])
+  }, [design, isGenerating, controlledTab])
 
   async function downloadManufacturingBundle() {
     if (!design?.verified || isExporting) return
@@ -107,8 +125,7 @@ export function CircuitViewer({
         const payload = await response.json().catch(() => null)
         throw new Error(payload?.error ?? 'Review failed')
       }
-      const data = await response.json()
-      setReviewData(data)
+      setReviewData(await response.json())
     } catch (error) {
       console.error('Review failed:', error)
     } finally {
@@ -116,361 +133,326 @@ export function CircuitViewer({
     }
   }
 
+  const errorCount = diagnostics?.filter((d) => d.severity === 'error').length ?? 0
+
+  const content = useMemo(() => {
+    if (isGenerating) {
+      return <GeneratingPane stages={stages} liveCode={liveCode} diagnostics={diagnostics} />
+    }
+    if (!design) {
+      return <WelcomePane onPickExample={undefined} />
+    }
+    switch (activeTab) {
+      case 'pcb':
+        return (
+          <Pane>
+            <PcbView circuitJson={design.circuitJson} />
+          </Pane>
+        )
+      case '3d':
+        return (
+          <Pane>
+            <ThreeDView circuitJson={design.circuitJson} />
+          </Pane>
+        )
+      case 'source':
+        return <SourcePane design={design} diagnostics={diagnostics} />
+      case 'review':
+        return (
+          <Pane scroll>
+            <ReviewPanel design={design} onRunReview={runDeepReview} isReviewing={isReviewing} />
+            {reviewData && (
+              <div className="mt-3 border-2 border-black bg-black p-3 shadow-[3px_3px_0px_0px_#00E5FF]">
+                <p className="font-mono text-[10px] font-black uppercase tracking-[0.16em] text-[#00E5FF]">
+                  Deep review · score {Math.round(reviewData.score ?? 0)}%
+                </p>
+                <p className="mt-1 font-mono text-[11px] text-white/70">
+                  {reviewData.manufacturingReady
+                    ? 'Manufacturing ready.'
+                    : `${reviewData.categorized?.errors?.length ?? 0} blocking issue(s) remain.`}
+                </p>
+              </div>
+            )}
+          </Pane>
+        )
+      default:
+        return (
+          <Pane>
+            <SchematicView circuitJson={design.circuitJson} />
+          </Pane>
+        )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, design, isGenerating, stages, liveCode, diagnostics, reviewData, isReviewing])
+
   return (
     <section className="flex h-full min-h-0 flex-col bg-white">
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="flex h-full min-h-0 flex-col gap-0"
-      >
-        <header className="flex min-h-[52px] shrink-0 items-center justify-between gap-2 border-b-[4px] border-black bg-white px-3">
-          <TabsList variant="default" className="h-11 min-w-0 overflow-x-auto p-0">
-            <TabsTrigger value="schematic" className="gap-1.5">
-              <EyeIcon className="size-3.5" />
-              Schematic
-            </TabsTrigger>
-            <TabsTrigger value="pcb" className="gap-1.5">
-              <LayersIcon className="size-3.5" />
-              PCB
-            </TabsTrigger>
-            <TabsTrigger value="3d" className="gap-1.5">
-              <BoxIcon className="size-3.5" />
-              3D
-            </TabsTrigger>
-            <TabsTrigger value="source" className="gap-1.5">
-              <FileCodeIcon className="size-3.5" />
-              Source
-            </TabsTrigger>
-            <TabsTrigger value="review" className="gap-1.5">
-              <ClipboardCheckIcon className="size-3.5" />
-              Review
-            </TabsTrigger>
-          </TabsList>
-          <div className="flex shrink-0 items-center gap-2">
-            {isGenerating ? (
-              <Badge variant="live" className="animate-pulse">
-                <span className="size-2 bg-[#00E5FF] brutal-live-dot" />
-                LIVE
+      {/* Document tabs */}
+      <div className="flex h-8 shrink-0 items-stretch border-b-2 border-black bg-zinc-100">
+        <div className="flex min-w-0 flex-1 overflow-x-auto">
+          {DOC_TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              className="doc-tab"
+              data-active={activeTab === id && !isGenerating}
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon className="size-3.5" />
+              {label}
+              {id === 'review' && errorCount > 0 && (
+                <span className="ml-0.5 border border-black bg-red-500 px-1 text-[9px] text-white">
+                  {errorCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab-right controls */}
+        <div className="flex shrink-0 items-center gap-1.5 border-l-2 border-black px-2">
+          {isGenerating ? (
+            <Badge variant="live" className="h-5 text-[9px]">
+              <span className="size-1.5 bg-[#00E5FF] brutal-live-dot" />
+              COMPILING
+            </Badge>
+          ) : design ? (
+            design.verified ? (
+              <Badge variant="success" className="h-5 text-[9px]">
+                <CheckCircle2Icon className="size-3" />
+                VERIFIED
               </Badge>
             ) : (
-              <Badge
-                variant={
-                  design?.verified ? 'success' : design ? 'destructive' : 'secondary'
-                }
-              >
-                {design?.verified ? 'VERIFIED' : design ? 'BLOCKED' : status.toUpperCase()}
+              <Badge variant="destructive" className="h-5 text-[9px]">
+                <ShieldAlertIcon className="size-3" />
+                BLOCKED
               </Badge>
-            )}
-            {design?.verified ? (
-              <Button
-                size="sm"
-                variant="cyan"
-                className="hidden h-8 text-[10px] sm:inline-flex"
-                disabled={isExporting}
-                onClick={downloadManufacturingBundle}
-              >
-                <DownloadIcon data-icon="inline-start" />
-                {isExporting ? 'PACKAGING' : 'FAB BUNDLE'}
-              </Button>
-            ) : null}
-          </div>
-        </header>
-
-        <TabsContent value="schematic" className="min-h-0 flex-1 overflow-hidden">
-          <ViewerPane
-            isGenerating={isGenerating}
-            hasCircuit={Boolean(design)}
-            stages={stages}
-            liveCode={liveCode}
-          >
-            {design ? <SchematicView circuitJson={design.circuitJson} /> : null}
-          </ViewerPane>
-        </TabsContent>
-        <TabsContent value="pcb" className="min-h-0 flex-1 overflow-hidden">
-          <ViewerPane
-            isGenerating={isGenerating}
-            hasCircuit={Boolean(design)}
-            stages={stages}
-            liveCode={liveCode}
-          >
-            {design ? <PcbView circuitJson={design.circuitJson} /> : null}
-          </ViewerPane>
-        </TabsContent>
-        <TabsContent value="3d" className="min-h-0 flex-1 overflow-hidden">
-          <ViewerPane
-            isGenerating={isGenerating}
-            hasCircuit={Boolean(design)}
-            stages={stages}
-            liveCode={liveCode}
-          >
-            {design ? <ThreeDView circuitJson={design.circuitJson} /> : null}
-          </ViewerPane>
-        </TabsContent>
-        <TabsContent value="source" className="min-h-0 flex-1 overflow-auto bg-zinc-50">
-          {design ? (
-            <div className="space-y-4 p-4">
-              {/* Verified Banner */}
-              <BrutalCard
-                variant={design.verified ? 'cyan' : 'white'}
-                shadow="default"
-                className="flex flex-wrap items-start justify-between gap-3"
-              >
-                <div className="min-w-0 space-y-2">
-                  <div className="flex items-center gap-2">
-                    {design.verified ? (
-                      <CheckCircle2Icon className="size-5" />
-                    ) : (
-                      <ShieldAlertIcon className="size-5" />
-                    )}
-                    <h2 className="font-black text-sm uppercase tracking-wider">
-                      {design.verified ? 'Automated checks passed' : 'Manufacturing blocked'}
-                    </h2>
-                    <Badge variant={design.verified ? 'success' : 'destructive'}>
-                      {design.verified ? 'READY' : 'BLOCKED'}
-                    </Badge>
-                  </div>
-                  <p className="max-w-2xl font-mono text-xs leading-relaxed">{design.summary}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">{design.stats.components} COMPS</Badge>
-                    <Badge variant="outline">{design.stats.sourceTraces} NETS</Badge>
-                    <Badge variant="outline">{design.stats.routedTraces} ROUTED</Badge>
-                    <Badge variant="outline">{design.iterations} PASSES</Badge>
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant={design.verified ? 'default' : 'outline'}
-                  disabled={!design.verified || isExporting}
-                  onClick={downloadManufacturingBundle}
-                  className="shrink-0"
-                >
-                  <DownloadIcon data-icon="inline-start" />
-                  {isExporting ? 'PACKAGING...' : 'DOWNLOAD FAB BUNDLE'}
-                </Button>
-              </BrutalCard>
-
-              {exportError ? (
-                <div className="border-[3px] border-black bg-red-500 p-3 font-mono text-xs font-bold text-white shadow-[4px_4px_0px_0px_black]">
-                  ⚠ {exportError}
-                </div>
-              ) : null}
-
-              {/* Stats Grid */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {[
-                  ['Components', design.stats.components, '🔧'],
-                  ['Nets', design.stats.sourceTraces, '⚡'],
-                  ['Routed', design.stats.routedTraces, '🛣️'],
-                  ['Repair passes', design.iterations, '🔄'],
-                ].map(([label, value, emoji]) => (
-                  <div
-                    key={label as string}
-                    className="border-[3px] border-black bg-white p-3 shadow-[3px_3px_0px_0px_black]"
-                  >
-                    <p className="font-mono text-[10px] font-black uppercase tracking-wider">
-                      {emoji} {label as string}
-                    </p>
-                    <p className="mt-1 font-black text-2xl">{value as number}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Live Diagnostics */}
-              {diagnostics && diagnostics.length > 0 && isGenerating && (
-                <BrutalCard variant="white" shadow="default" padding="sm">
-                  <div className="flex items-center gap-2">
-                    <ZapIcon className="size-4" />
-                    <span className="font-mono text-xs font-black uppercase">
-                      Live Diagnostics: {diagnostics.length} issues
-                    </span>
-                  </div>
-                  <div className="mt-2 max-h-20 overflow-auto">
-                    {diagnostics.slice(0, 3).map((d, i) => (
-                      <div key={i} className="font-mono text-[11px]">
-                        [{d.severity}] {d.message.slice(0, 80)}
-                      </div>
-                    ))}
-                  </div>
-                </BrutalCard>
-              )}
-
-              {/* Code */}
-              <BrutalCard variant="white" shadow="default" padding="none">
-                <div className="flex items-center justify-between border-b-[3px] border-black bg-black px-3 py-2">
-                  <h3 className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-widest text-[#00E5FF]">
-                    <Code2Icon className="size-4" /> tscircuit TSX • {design.tsx.length} chars
-                  </h3>
-                  <Badge variant="live" className="text-[10px]">
-                    LIVE CODE
-                  </Badge>
-                </div>
-                <pre className="max-h-96 overflow-auto bg-zinc-950 p-4 font-mono text-[11px] leading-relaxed text-zinc-100">
-                  <code>{design.tsx}</code>
-                </pre>
-              </BrutalCard>
-
-              <p className="border-l-[4px] border-[#00E5FF] bg-[#00E5FF]/10 p-3 font-mono text-[11px] leading-relaxed">
-                <strong>⚠️ MANUFACTURING DISCLAIMER:</strong> Automated verification is a gate,
-                not a substitute for qualified review of datasheets, footprints, thermal limits,
-                EMC, regulatory compliance, and fabricator stack-up.
-              </p>
-            </div>
-          ) : (
-            <ViewerPane isGenerating={isGenerating} hasCircuit={false} stages={stages} liveCode={liveCode}>
-              {null}
-            </ViewerPane>
+            )
+          ) : null}
+          {design?.verified && (
+            <Button
+              size="xs"
+              variant="cyan"
+              className="h-5 text-[9px]"
+              disabled={isExporting}
+              onClick={downloadManufacturingBundle}
+            >
+              <DownloadIcon className="size-3" />
+              {isExporting ? 'PACKING…' : 'FAB BUNDLE'}
+            </Button>
           )}
-        </TabsContent>
-        <TabsContent value="review" className="min-h-0 flex-1 overflow-auto bg-zinc-50">
-          {design ? (
-            <ReviewPanel design={design} onRunReview={runDeepReview} isReviewing={isReviewing} />
-          ) : (
-            <ViewerPane isGenerating={isGenerating} hasCircuit={false} stages={stages} liveCode={liveCode}>
-              {null}
-            </ViewerPane>
-          )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className={cn('min-h-0 flex-1 overflow-hidden studio-grid-bg', !gridOn && 'bg-white')}>
+        {content}
+      </div>
+
+      {exportError && (
+        <div className="border-t-2 border-black bg-red-500 px-3 py-1 font-mono text-[10px] font-bold text-white">
+          ⚠ {exportError}
+        </div>
+      )}
     </section>
   )
 }
 
-function ViewerPane({
-  isGenerating,
-  hasCircuit,
-  children,
-  stages,
-  liveCode,
-}: {
-  isGenerating: boolean
-  hasCircuit: boolean
-  children: ReactNode
-  stages?: string[]
-  liveCode?: string
-}) {
-  if (isGenerating) {
-    return (
-      <div className="relative flex size-full min-h-0 flex-col bg-white">
-        {/* Live generation header */}
-        <div className="border-b-[3px] border-black bg-black p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="size-3 bg-[#00E5FF] brutal-live-dot" />
-              <span className="font-mono text-xs font-black uppercase tracking-widest text-[#00E5FF]">
-                LIVE GENERATION ACTIVE
-              </span>
-              <Badge variant="live" className="bg-[#00E5FF] text-black">
-                GENERATING
-              </Badge>
-            </div>
-            <div className="font-mono text-[10px] text-white/60">
-              {stages?.length ? stages[stages.length - 1] : 'INITIALIZING...'}
-            </div>
-          </div>
-          {/* Progress bar */}
-          <div className="mt-3 h-2 border-2 border-[#00E5FF] bg-zinc-900">
-            <div className="h-full w-full bg-[#00E5FF] brutal-animate-shimmer" />
-          </div>
-        </div>
+/* ── Panes ─────────────────────────────────────────────────── */
 
-        {/* Live preview grid */}
-        <div className="grid flex-1 grid-cols-1 gap-0 sm:grid-cols-3">
-          <div className="relative border-b-[3px] border-black sm:border-b-0 sm:border-r-[3px]">
-            <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 gap-px bg-zinc-100 p-2">
-              {Array.from({ length: 64 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="bg-white"
-                  style={{
-                    animation: `brutal-pulse ${0.5 + Math.random()}s ease-in-out infinite`,
-                    animationDelay: `${Math.random() * 2}s`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="border-[3px] border-black bg-[#00E5FF] px-3 py-1.5 shadow-[4px_4px_0px_0px_black]">
-                <span className="font-mono text-[10px] font-black uppercase">Schematic • Building</span>
-              </div>
-            </div>
-          </div>
-          <div className="relative border-b-[3px] border-black sm:border-b-0 sm:border-r-[3px]">
-            <div className="absolute inset-0 bg-zinc-900 p-2">
-              <div className="size-full border-2 border-dashed border-[#00E5FF]/30">
-                <div className="size-full brutal-animate-grid bg-[linear-gradient(to_right,#00E5FF20_1px,transparent_1px),linear-gradient(to_bottom,#00E5FF20_1px,transparent_1px)] bg-[size:20px_20px]" />
-              </div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="border-[3px] border-[#00E5FF] bg-black px-3 py-1.5 shadow-[4px_4px_0px_0px_#00E5FF]">
-                <span className="font-mono text-[10px] font-black uppercase text-[#00E5FF]">
-                  PCB • Routing
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="relative">
-            <div className="absolute inset-0 bg-black p-2">
-              <div className="flex size-full items-center justify-center">
-                <div className="size-16 border-[3px] border-[#00E5FF] bg-transparent brutal-animate-pulse" />
-              </div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="border-[3px] border-[#00E5FF] bg-black px-3 py-1.5 shadow-[4px_4px_0px_0px_#00E5FF]">
-                <span className="font-mono text-[10px] font-black uppercase text-[#00E5FF]">
-                  3D • Assembling
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+function Pane({ children, scroll }: { children: ReactNode; scroll?: boolean }) {
+  return (
+    <div className={cn('size-full min-h-0', scroll ? 'overflow-y-auto p-3' : 'overflow-hidden')}>
+      {children}
+    </div>
+  )
+}
 
-        {/* Stages */}
-        <div className="border-t-[3px] border-black bg-white p-3">
-          <div className="flex gap-2 overflow-x-auto">
-            {(stages?.slice(-4) ?? ['Reviewing requirements', 'Generating TSX', 'Compiling', 'Verifying']).map(
-              (stage, idx) => (
-                <div
-                  key={idx}
-                  className="shrink-0 border-[2.5px] border-black bg-[#00E5FF] px-3 py-1.5 font-mono text-[10px] font-black uppercase shadow-[2px_2px_0px_0px_black]"
-                >
-                  {idx + 1}. {stage}
-                </div>
-              ),
-            )}
-          </div>
-        </div>
-
-        {/* Live code */}
-        {liveCode && (
-          <div className="max-h-24 overflow-hidden border-t-[3px] border-black bg-zinc-950 p-2">
-            <div className="font-mono text-[10px] leading-relaxed text-emerald-400">
-              {liveCode.slice(-200)}
-              <span className="ml-1 inline-block h-3 w-2 bg-[#00E5FF] brutal-animate-blink" />
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-  if (!hasCircuit) {
-    return (
-      <Empty className="size-full min-h-0 rounded-none border-[3px] border-black bg-white">
+function WelcomePane(_: { onPickExample?: undefined }) {
+  return (
+    <div className="flex size-full items-center justify-center p-6">
+      <Empty className="max-w-md rounded-none border-2 border-dashed border-black/30 bg-white/80">
         <EmptyHeader>
-          <EmptyMedia variant="icon" className="border-[3px] border-black bg-[#00E5FF] shadow-[4px_4px_0px_0px_black]">
+          <EmptyMedia
+            variant="icon"
+            className="border-2 border-black bg-[#00E5FF] shadow-[3px_3px_0px_0px_black]"
+          >
             <LayersIcon className="text-black" />
           </EmptyMedia>
-          <EmptyTitle className="font-black uppercase tracking-widest">No compiled design</EmptyTitle>
-          <EmptyDescription className="font-mono text-xs">
-            Schematic, routed board, 3D assembly, source, checks, and manufacturing exports appear after
-            the agent compiles a design. Start by describing your board.
+          <EmptyTitle className="font-black uppercase tracking-widest">
+            Canvas empty
+          </EmptyTitle>
+          <EmptyDescription className="font-mono text-xs leading-relaxed">
+            Send a brief in the left dock. Schematic, layout, 3D and checks appear here the
+            moment the agent compiles a design.
           </EmptyDescription>
-          <div className="mt-4 flex gap-2">
-            <Badge variant="outline">AWAITING BRIEF</Badge>
-            <Badge variant="default">READY TO GENERATE</Badge>
-          </div>
         </EmptyHeader>
       </Empty>
-    )
-  }
-  return <div className="size-full min-h-0">{children}</div>
+    </div>
+  )
+}
+
+function GeneratingPane({
+  stages,
+  liveCode,
+  diagnostics,
+}: {
+  stages: string[]
+  liveCode?: string
+  diagnostics?: DesignDiagnostic[]
+}) {
+  const current = stages[stages.length - 1] ?? 'Initializing agent…'
+  const errCount = diagnostics?.filter((d) => d.severity === 'error').length ?? 0
+
+  return (
+    <div className="flex size-full flex-col">
+      {/* Big stage */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
+        {/* Spinning trace ring */}
+        <div className="relative size-28">
+          <div className="absolute inset-0 border-[3px] border-black bg-white shadow-[5px_5px_0px_0px_black]" />
+          <div className="absolute inset-2 border-[3px] border-dashed border-[#00E5FF] animate-spin [animation-duration:3s]" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ZapIcon className="size-8 text-black brutal-animate-pulse" />
+          </div>
+        </div>
+
+        <div className="max-w-lg text-center">
+          <p className="font-black text-sm uppercase tracking-[0.2em]">{current}</p>
+          <p className="mt-1 font-mono text-[11px] text-zinc-500">
+            Fireworks is writing tscircuit TSX → compiling → ERC/DRC → repairing
+          </p>
+        </div>
+
+        {/* Stage chips */}
+        <div className="flex max-w-2xl flex-wrap justify-center gap-1.5">
+          {stages.slice(-6).map((stage, idx) => (
+            <span
+              key={`${stage}-${idx}`}
+              className={cn(
+                'border-2 border-black px-2 py-0.5 font-mono text-[9px] font-black uppercase tracking-wider',
+                idx === stages.slice(-6).length - 1
+                  ? 'bg-[#00E5FF] shadow-[2px_2px_0px_0px_black]'
+                  : 'bg-white text-black/50',
+              )}
+            >
+              {stage}
+            </span>
+          ))}
+        </div>
+
+        {errCount > 0 && (
+          <Badge variant="destructive" className="text-[10px]">
+            {errCount} issue{errCount === 1 ? '' : 's'} queued for repair
+          </Badge>
+        )}
+      </div>
+
+      {/* Live code strip */}
+      {liveCode && (
+        <div className="h-28 shrink-0 overflow-hidden border-t-2 border-black bg-zinc-950">
+          <div className="flex items-center gap-2 border-b border-white/10 px-2 py-0.5">
+            <span className="size-1.5 bg-[#00E5FF] brutal-live-dot" />
+            <span className="font-mono text-[9px] font-black uppercase tracking-[0.16em] text-[#00E5FF]">
+              Live TSX
+            </span>
+          </div>
+          <pre className="h-[calc(100%-18px)] overflow-hidden p-2 font-mono text-[10px] leading-4 text-emerald-300">
+            {liveCode.slice(-700)}
+            <span className="ml-0.5 inline-block h-3 w-1.5 bg-[#00E5FF] brutal-animate-blink" />
+          </pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SourcePane({ design, diagnostics }: { design: DesignResult; diagnostics?: DesignDiagnostic[] }) {
+  const stats = [
+    ['Components', design.stats.components],
+    ['Nets', design.stats.sourceTraces],
+    ['Routed', design.stats.routedTraces],
+    ['Passes', design.iterations],
+  ] as const
+
+  return (
+    <div className="size-full overflow-y-auto p-3">
+      <BrutalCard
+        variant={design.verified ? 'cyan' : 'white'}
+        shadow="default"
+        className="flex flex-wrap items-start justify-between gap-3"
+      >
+        <div className="min-w-0 space-y-2">
+          <div className="flex items-center gap-2">
+            {design.verified ? (
+              <CheckCircle2Icon className="size-5" />
+            ) : (
+              <ShieldAlertIcon className="size-5" />
+            )}
+            <h2 className="font-black text-sm uppercase tracking-wider">
+              {design.verified ? 'Automated checks passed' : 'Manufacturing blocked'}
+            </h2>
+            <Badge variant={design.verified ? 'success' : 'destructive'}>
+              {design.verified ? 'READY' : 'BLOCKED'}
+            </Badge>
+          </div>
+          <p className="max-w-2xl font-mono text-xs leading-relaxed">{design.summary}</p>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">{design.stats.components} COMPS</Badge>
+            <Badge variant="outline">{design.stats.sourceTraces} NETS</Badge>
+            <Badge variant="outline">{design.stats.routedTraces} ROUTED</Badge>
+            <Badge variant="outline">{design.iterations} PASSES</Badge>
+          </div>
+        </div>
+      </BrutalCard>
+
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {stats.map(([label, value]) => (
+          <div
+            key={label}
+            className="border-2 border-black bg-white p-2 shadow-[2px_2px_0px_0px_black]"
+          >
+            <p className="font-mono text-[9px] font-black uppercase tracking-wider text-zinc-500">
+              {label}
+            </p>
+            <p className="font-black text-xl">{value}</p>
+          </div>
+        ))}
+      </div>
+
+      {diagnostics && diagnostics.length > 0 && (
+        <BrutalCard variant="white" shadow="sm" padding="sm" className="mt-3">
+          <div className="flex items-center gap-2">
+            <ZapIcon className="size-4" />
+            <span className="font-mono text-xs font-black uppercase">
+              Diagnostics: {diagnostics.length}
+            </span>
+          </div>
+          <div className="mt-2 max-h-24 overflow-auto">
+            {diagnostics.slice(0, 5).map((d, i) => (
+              <div key={i} className="font-mono text-[11px]">
+                [{d.severity}] {d.message.slice(0, 100)}
+              </div>
+            ))}
+          </div>
+        </BrutalCard>
+      )}
+
+      <BrutalCard variant="white" shadow="sm" padding="none" className="mt-3 overflow-hidden">
+        <div className="flex items-center justify-between border-b-2 border-black bg-black px-3 py-1.5">
+          <h3 className="flex items-center gap-2 font-mono text-[11px] font-black uppercase tracking-widest text-[#00E5FF]">
+            <Code2Icon className="size-3.5" /> tscircuit TSX · {design.tsx.length} chars
+          </h3>
+        </div>
+        <pre className="max-h-80 overflow-auto bg-zinc-950 p-3 font-mono text-[11px] leading-relaxed text-zinc-100">
+          <code>{design.tsx}</code>
+        </pre>
+      </BrutalCard>
+
+      <p className="mt-3 border-l-4 border-[#00E5FF] bg-[#00E5FF]/10 p-2 font-mono text-[10px] leading-relaxed">
+        <strong>MANUFACTURING DISCLAIMER:</strong> Automated verification is a gate, not a
+        substitute for qualified review of datasheets, footprints, thermal limits, EMC,
+        regulatory compliance, and fabricator stack-up.
+      </p>
+    </div>
+  )
 }

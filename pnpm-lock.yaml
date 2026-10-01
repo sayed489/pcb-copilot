@@ -175,6 +175,9 @@ importers:
       tailwind-merge:
         specifier: ^3.3.1
         version: 3.4.0
+      three:
+        specifier: 0.165.0
+        version: 0.165.0
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -194,6 +197,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.3(@types/react@19.2.14)
+      '@types/three':
+        specifier: 0.165.0
+        version: 0.165.0
       postcss:
         specifier: ^8.5
         version: 8.5.6
@@ -1886,6 +1892,9 @@ packages:
       transformation-matrix: '*'
       zod: '*'
 
+  '@tweenjs/tween.js@23.1.3':
+    resolution: {integrity: sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA==}
+
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
 
@@ -1935,6 +1944,12 @@ packages:
 
   '@types/resolve@1.20.2':
     resolution: {integrity: sha512-60BCwRFOZCQhDncwQdxxeOEEkbc5dIMccYLwbxsS4TUNeVECQ/pBJ0j09mrHOl/JJvpRPGwO9SvE4nR2Nb/a4Q==}
+
+  '@types/stats.js@0.17.4':
+    resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
+
+  '@types/three@0.165.0':
+    resolution: {integrity: sha512-AJK8JZAFNBF0kBXiAIl5pggYlzAGGA8geVYQXAcPCEDRbyA+oEjkpUBcJJrtNz6IiALwzGexFJGZG2yV3WsYBw==}
 
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
@@ -3291,6 +3306,9 @@ packages:
   merge2@1.4.1:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
+
+  meshoptimizer@0.18.1:
+    resolution: {integrity: sha512-ZhoIoL7TNV4s5B6+rx5mC//fw8/POGyNxS/DZyCJeiZ12ScLfVwRE/GfsxwiTkMYYD5DmK2/JXnEVXqL4rF+Sw==}
 
   micromatch@4.0.8:
     resolution: {integrity: sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==}
@@ -6030,6 +6048,8 @@ snapshots:
       transformation-matrix: 3.1.0
       zod: 3.25.76
 
+  '@tweenjs/tween.js@23.1.3': {}
+
   '@types/babel__core@7.20.5':
     dependencies:
       '@babel/parser': 7.29.7
@@ -6089,6 +6109,16 @@ snapshots:
       csstype: 3.2.3
 
   '@types/resolve@1.20.2': {}
+
+  '@types/stats.js@0.17.4': {}
+
+  '@types/three@0.165.0':
+    dependencies:
+      '@tweenjs/tween.js': 23.1.3
+      '@types/stats.js': 0.17.4
+      '@types/webxr': 0.5.24
+      fflate: 0.8.3
+      meshoptimizer: 0.18.1
 
   '@types/validate-npm-package-name@4.0.2': {}
 
@@ -7406,6 +7436,8 @@ snapshots:
   merge-stream@2.0.0: {}
 
   merge2@1.4.1: {}
+
+  meshoptimizer@0.18.1: {}
 
   micromatch@4.0.8:
     dependencies:

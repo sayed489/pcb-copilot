@@ -17,3 +17,6 @@ node_modules
 # Generated artifacts
 next-env.d.ts
 *.tsbuildinfo
+
+# Local test scratch
+.scratch/

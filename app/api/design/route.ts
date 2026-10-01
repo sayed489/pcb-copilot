@@ -10,7 +10,6 @@ export const maxDuration = 300
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 // Fluid Compute: prefer region close to Fireworks (us-west)
-export const preferredRegion = ['sfo1', 'iad1']
 
 const rateLimit = createRateLimitStore({ max: 6, windowMs: 10 * 60_000, maxKeys: 2000 })
 

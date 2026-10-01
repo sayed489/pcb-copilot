@@ -2,11 +2,29 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const FIREWORKS_API_URL = 'https://api.fireworks.ai/inference/v1/chat/completions'
-const DEFAULT_MODEL_ID = 'accounts/fireworks/models/deepseek-v4-flash'
+
+/**
+ * GLM 5.3 Flash — Fireworks' current serverless quickstart default.
+ * 320B MoE (18B active), 1M context, multimodal, structured outputs.
+ * Override with FIREWORKS_MODEL_ID when needed.
+ */
+const DEFAULT_MODEL_ID = 'accounts/fireworks/models/glm-5p3-flash'
+
+/**
+ * Tried in order when the primary model id is rejected (404 / decommissioned).
+ * Fireworks decommissions serverless models periodically (e.g. the 2026-09-25
+ * DeepSeek/GLM 5.2 wave), so we never hard-fail on a single id.
+ */
+const MODEL_FALLBACKS = [
+  DEFAULT_MODEL_ID,
+  'accounts/fireworks/models/glm-5p3',
+  'accounts/fireworks/models/deepseek-v4p1-flash',
+]
 
 export type ServerConfig = {
   fireworksApiUrl: string
   modelId: string
+  modelFallbacks: string[]
   apiKey: string
 }
 
@@ -21,6 +39,9 @@ export function getModelId() {
 }
 
 export function getFireworksApiUrl() {
+  // Env override enables testing against a mock/proxy without code changes.
+  const fromEnv = process.env.FIREWORKS_API_URL?.trim()
+  if (fromEnv && /^https?:\/\//.test(fromEnv)) return fromEnv
   return FIREWORKS_API_URL
 }
 
@@ -44,9 +65,12 @@ export function getServerConfig(): ServerConfig {
     throw new Error('FIREWORKS_API_KEY looks too short; check for truncation.')
   }
 
+  const primary = getModelId()
   const config: ServerConfig = {
-    fireworksApiUrl: FIREWORKS_API_URL,
-    modelId: getModelId(),
+    fireworksApiUrl: getFireworksApiUrl(),
+    modelId: primary,
+    // Primary first, then deduped fallbacks.
+    modelFallbacks: [...new Set([primary, ...MODEL_FALLBACKS])],
     apiKey,
   }
   cachedConfig = config

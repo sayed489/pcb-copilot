@@ -37,7 +37,8 @@ Return ONLY the TSX module, no explanation.`
     ],
     {
       timeoutMs: 120_000,
-      maxTokens: 8_192,
+      maxTokens: 16_384,
+      reasoningEffort: 'medium',
       signal: callbacks?.signal,
       onChunk: (chunk) => {
         fullText += chunk
@@ -80,7 +81,7 @@ ${code.slice(0, 30_000)}`
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: prompt },
     ],
-    { timeoutMs: 120_000, maxTokens: 8_192, signal: callbacks?.signal },
+    { timeoutMs: 120_000, maxTokens: 16_384, reasoningEffort: 'medium', signal: callbacks?.signal },
   )
 
   // For repair, we use non-streaming for stability, but still support chunk callback via streaming if needed
