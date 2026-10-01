@@ -30,3 +30,12 @@ export const reviewRequestSchema = z.object({
 })
 
 export type ReviewRequestBody = z.infer<typeof reviewRequestSchema>
+
+export const verifyRequestSchema = z.object({
+  tsx: z.string().min(1).max(80_000),
+  summary: z.string().max(2_000).default('Generated PCB design'),
+  model: z.string().max(200).optional(),
+  withBrief: z.boolean().default(false),
+})
+
+export type VerifyRequestBody = z.infer<typeof verifyRequestSchema>

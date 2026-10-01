@@ -8,25 +8,29 @@ failures, and export a manufacturing bundle once verification passes.
 brief → Fireworks (GLM 5.3 Flash) → TSX → compile → ERC/DRC → repair loop → Gerbers
 ```
 
-## Studio UI
+## Studio UI (minimal)
 
-A neobrutalism cyan-and-white **EDA editor shell**:
+Cyan-and-white brutal theme, stripped to essentials:
 
-- **Menu bar** — File / Edit / View / Help with working actions
-  (new design, export, deep review, tab navigation)
-- **Toolbar** — select / route / measure tools, grid & snap toggles,
-  review & fab actions, live pipeline progress
-- **Left dock** — *Storyline* with **Solder**, a 3D three.js mascot that
-  narrates the five-act generation pipeline (brief → draft → compile →
-  verify → ship), plus the engineering brief chat with one-click
-  clarification replies
+- **Top bar** — brand, live status, **engine toggle** (DIRECT = your browser
+  calls Fireworks with your key · SERVER = the host calls Fireworks), reset
+- **Left dock** — *Solder*, a compact 3D three.js mascot narrating the
+  five-act pipeline (brief → draft → compile → verify → ship), above the
+  brief chat with one-click clarification replies
 - **Center** — document tabs (Schematic / PCB / 3D / Source / Checks) over
-  a grid canvas; live TSX streaming and stage feedback while generating
-- **Right dock** — Inspector: properties, layer stack, live problem list
-- **Bottom** — collapsible console (timestamped agent log) and a status
-  bar with cursor coordinates, grid, routing ratio, and DRC state
-- **Fireworks celebration** — full-screen particle burst when a design
-  passes verification
+  the canvas; live TSX streaming while generating
+- **Status bar** — engine, board stats, DRC state
+- **Fireworks celebration** — particle burst when a design passes verification
+
+## Two engines
+
+| Engine | Path | Use when |
+|---|---|---|
+| `DIRECT` | browser → api.fireworks.ai, then `POST /api/verify` | host cannot reach Fireworks (sandboxed previews); tests the **real API** from your browser |
+| `SERVER` | `/api/design` → Fireworks → compile | normal deployments (Vercel, localhost with internet) |
+
+The `DIRECT` engine needs `NEXT_PUBLIC_FIREWORKS_API_KEY` (it is embedded in
+the client bundle — use a test key on public previews).
 
 ## Pipeline hardening
 

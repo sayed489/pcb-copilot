@@ -1,72 +1,9 @@
-import { z } from 'zod'
-
 import type { ServerConfig } from './config'
 import { requestFireworks } from './fireworks'
+import { parseDesignBrief, type DesignBrief } from '../brief-schema'
 
-const designBriefSchema = z.object({
-  status: z.enum(['ready', 'needs_clarification']),
-  questions: z.array(z.string().min(1).max(300)).max(5),
-  summary: z.string().min(1).max(2000),
-  assumptions: z.array(z.string().min(1).max(500)).max(20),
-  requirements: z.array(z.string().min(1).max(500)).max(40),
-})
-
-export type DesignBrief = z.infer<typeof designBriefSchema>
-
-/**
- * Parse a Fireworks JSON response into a DesignBrief with robust fallback.
- */
-export function parseDesignBrief(raw: string): DesignBrief {
-  const jsonStr = extractJson(raw)
-  let parsedJson: unknown
-  try {
-    parsedJson = JSON.parse(jsonStr)
-  } catch {
-    // Try to repair common JSON issues: trailing commas, single quotes
-    try {
-      const repaired = jsonStr
-        .replace(/,\s*}/g, '}')
-        .replace(/,\s*]/g, ']')
-        .replace(/'/g, '"')
-      parsedJson = JSON.parse(repaired)
-    } catch {
-      throw new Error('Fireworks returned invalid JSON for design brief.')
-    }
-  }
-
-  const parsed = designBriefSchema.safeParse(parsedJson)
-  if (parsed.success) return parsed.data
-
-  const partial = designBriefSchema.partial().safeParse(parsedJson)
-  if (!partial.success) {
-    throw new Error('Fireworks returned an invalid design brief.')
-  }
-
-  const data = partial.data
-  return {
-    status: 'ready',
-    questions: [],
-    summary: data.summary ?? 'Generated PCB design',
-    assumptions: data.assumptions ?? ['Key parameters unspecified; conservative defaults assumed.'],
-    requirements: data.requirements ?? ['Generate a manufacturable PCB for the described board.'],
-  }
-}
-
-function extractJson(raw: string) {
-  const trimmed = raw.trim()
-  // Handle fenced JSON
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (fenced?.[1]) return fenced[1].trim()
-
-  // Find first { and last } to extract JSON object
-  const firstBrace = trimmed.indexOf('{')
-  const lastBrace = trimmed.lastIndexOf('}')
-  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-    return trimmed.slice(firstBrace, lastBrace + 1)
-  }
-
-  return trimmed
-}
+export { parseDesignBrief }
+export type { DesignBrief }
 
 export async function analyzeDesignRequest(
   config: ServerConfig,

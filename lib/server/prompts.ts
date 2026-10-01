@@ -61,3 +61,18 @@ Rules:
 - Common fixes: move parts inside the outline, space overlapping parts apart, add missing traces, fix selectors (.U1 > .VCC), add missing footprints/schX/schY/pcbX/pcbY, add decoupling near IC supply pins.
 - Keep it short, manufacturable, 2 layers.
 `
+
+import type { DesignBrief } from '../brief-schema'
+
+/** User prompt for initial codegen — shared by server and browser engines. */
+export function buildGenerationPrompt(brief: DesignBrief): string {
+  return `Create the complete PCB design now.
+
+Summary: ${brief.summary}
+Requirements:
+${brief.requirements.map((item) => `- ${item}`).join('\n')}
+Assumptions:
+${brief.assumptions.map((item) => `- ${item}`).join('\n')}
+
+Return ONLY the TSX module, no explanation.`
+}
