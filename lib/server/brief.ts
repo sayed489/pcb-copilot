@@ -1,0 +1,81 @@
+import type { ServerConfig } from './config'
+import { requestFireworks } from './fireworks'
+import { parseDesignBrief, type DesignBrief } from '../brief-schema'
+
+export { parseDesignBrief }
+export type { DesignBrief }
+
+export async function analyzeDesignRequest(
+  config: ServerConfig,
+  messages: string[],
+  allowClarification: boolean,
+  opts?: { signal?: AbortSignal },
+): Promise<DesignBrief> {
+  const schema = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['status', 'questions', 'summary', 'assumptions', 'requirements'],
+    properties: {
+      status: {
+        type: 'string',
+        enum: allowClarification ? ['ready', 'needs_clarification'] : ['ready'],
+      },
+      questions: { type: 'array', maxItems: 5, items: { type: 'string', minLength: 1, maxLength: 300 } },
+      summary: { type: 'string', minLength: 1, maxLength: 2000 },
+      assumptions: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 500 } },
+      requirements: { type: 'array', maxItems: 40, items: { type: 'string', minLength: 1, maxLength: 500 } },
+    },
+  }
+
+  const clarificationInstruction = allowClarification
+    ? 'This is the ONLY opportunity to ask clarification questions. If the brief is missing information that materially affects safety or function, set status to needs_clarification and list up to 5 critical questions.'
+    : 'Clarification was already requested. Do NOT ask any more questions. Set status to ready and make conservative, explicit engineering assumptions for missing details.'
+
+  const conversation = messages
+    .slice(-10) // Only last 10 messages to save tokens
+    .map((message, index) => `${index + 1}. ${message.slice(0, 1000)}`)
+    .join('\n')
+
+  const content = await requestFireworks(
+    config,
+    [
+      {
+        role: 'system',
+        content:
+          'You are a senior PCB requirements engineer. Return JSON matching the supplied schema exactly. Be concise but thorough. Prioritize safety and manufacturability.',
+      },
+      {
+        role: 'user',
+        content: `Review this PCB design conversation and produce a complete engineering brief.
+
+${clarificationInstruction}
+
+Ask ONLY critical questions that materially change safety or function: supply voltage/range, maximum current, required interfaces, board dimensions/connector constraints, load characteristics, or exact controller when relevant. Do not ask cosmetic questions. If earlier messages answer a question, do not ask it again.
+
+Conversation:
+${conversation}`,
+      },
+    ],
+    {
+      timeoutMs: 60_000,
+      maxTokens: 4_096,
+      jsonSchema: schema,
+      reasoningEffort: 'low',
+      signal: opts?.signal,
+      retries: 1,
+    },
+  )
+
+  const brief = parseDesignBrief(content)
+
+  if (!allowClarification) {
+    return { ...brief, status: 'ready', questions: [] }
+  }
+
+  // If questions are too vague, treat as ready
+  if (brief.status === 'needs_clarification' && brief.questions.length === 0) {
+    return { ...brief, status: 'ready' }
+  }
+
+  return brief
+}
