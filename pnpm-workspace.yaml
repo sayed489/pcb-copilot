@@ -1,0 +1,6 @@
+minimumReleaseAgeExclude:
+  - '@next/*'
+  - next
+
+allowBuilds:
+  sharp: false
